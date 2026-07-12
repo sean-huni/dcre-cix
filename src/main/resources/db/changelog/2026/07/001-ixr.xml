@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- ISR response-leg spine (M4 reader). Replay-safe via UNIQUE (response_file, e2e). -->
+    <changeSet id="001-isr-resp-ixr" author="dcre">
+        <sql>
+            CREATE TABLE IF NOT EXISTS isr_resp (
+                id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+                response_file VARCHAR(128) NOT NULL,
+                orgnl_msg_id VARCHAR(35) NOT NULL,
+                e2e VARCHAR(35) NOT NULL,
+                status VARCHAR(8) NOT NULL,
+                reason VARCHAR(8),
+                version BIGINT NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE (response_file, e2e)
+            );
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

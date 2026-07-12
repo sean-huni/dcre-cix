@@ -1,0 +1,18 @@
+# 12FactorApp: committed working dev defaults; env overrides. (yml-only rule, configuration.md p19)
+spring:
+  datasource:
+    url: ${DCRE_DB_URL:jdbc:postgresql://localhost:26257/dcre_collections?sslmode=disable}
+    username: ${DCRE_DB_USER:root}
+    password: ${DCRE_DB_PASSWORD:}
+  batch:
+    jdbc:
+      table-prefix: IXR_BATCH_
+      initialize-schema: never
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    # Shared DB, per-service migration history (same isolation idea as IXR_BATCH_)
+    database-change-log-table: ixr_databasechangelog
+    database-change-log-lock-table: ixr_databasechangeloglock
+
+dcre:
+  exchange-root: ${DCRE_EXCHANGE_ROOT:../../infra/dcre-infra/exchange}
