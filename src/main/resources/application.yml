@@ -18,4 +18,4 @@ spring:
     database-change-log-lock-table: ixr_databasechangeloglock
 
 dcre:
-  exchange-root: ${DCRE_EXCHANGE_ROOT:../../infra/dcre-infra/exchange}
+  exchange-root: ${DCRE_EXCHANGE_ROOT:../../../../../infra/dcre-infra/exchange}
