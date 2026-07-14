@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.transaction.PlatformTransactionManager;
 import za.co.fnb.dcre.ixr.service.ReaderTasklet;
+import za.co.fnb.dcre.platform.batch.CrdbRetryExceptionHandler;
 import za.co.fnb.dcre.platform.batch.OutcomeFileWriter;
 import za.co.fnb.dcre.platform.batch.StaleExecutionSweeper;
 
@@ -27,7 +28,12 @@ public class IxrJobConfig {
     @Bean
     public Job ixrJob(JobRepository repo, PlatformTransactionManager tx, ReaderTasklet tasklet,
                       @Value("${dcre.exchange-root}") String exchangeRoot) {
-        Step readerStep = new StepBuilder("readerStep", repo).tasklet(tasklet, tx).build();
+        // CRDB 40001 retry on the ingest step (the one that WRITES): 300k rows per
+        // reply file land in one step transaction while heavy writers run
+        // concurrently, so commit-time serialization aborts are expected.
+        // Retry, never skip (the handler covers the chunk-commit boundary).
+        Step readerStep = new StepBuilder("readerStep", repo).tasklet(tasklet, tx)
+                .exceptionHandler(new CrdbRetryExceptionHandler("IXR")).build();
         return new JobBuilder("ixrJob", repo)
                 .listener(new SeamListener(exchangeRoot))
                 .start(readerStep)
