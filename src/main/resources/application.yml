@@ -19,3 +19,7 @@ spring:
 
 dcre:
   exchange-root: ${DCRE_EXCHANGE_ROOT:../../../../../infra/dcre-infra/exchange}
+  ixr:
+    # SCRUM-42: reply upserts commit in bounded slices; one giant serializable
+    # tx is unrefreshable at 300k rows (RETRY_SERIALIZABLE).
+    ingest-slice-size: ${DCRE_IXR_INGEST_SLICE_SIZE:10000}

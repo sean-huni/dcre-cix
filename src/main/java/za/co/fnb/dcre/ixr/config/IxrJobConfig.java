@@ -28,10 +28,12 @@ public class IxrJobConfig {
     @Bean
     public Job ixrJob(JobRepository repo, PlatformTransactionManager tx, ReaderTasklet tasklet,
                       @Value("${dcre.exchange-root}") String exchangeRoot) {
-        // CRDB 40001 retry on the ingest step (the one that WRITES): 300k rows per
-        // reply file land in one step transaction while heavy writers run
-        // concurrently, so commit-time serialization aborts are expected.
-        // Retry, never skip (the handler covers the chunk-commit boundary).
+        // CRDB 40001 retry on the ingest step (the one that WRITES): reply-file
+        // upserts run while heavy writers run concurrently, so commit-time
+        // serialization aborts are expected. Retry, never skip (the handler
+        // covers the chunk-commit boundary). The step tx is THIN (SCRUM-42):
+        // all writes commit in per-slice REQUIRES_NEW transactions inside
+        // ReaderService, so a step-level re-run no-ops over committed slices.
         Step readerStep = new StepBuilder("readerStep", repo).tasklet(tasklet, tx)
                 .exceptionHandler(new CrdbRetryExceptionHandler("IXR")).build();
         return new JobBuilder("ixrJob", repo)
