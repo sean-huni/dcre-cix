@@ -1,69 +1,91 @@
 # dcre-ixr
 
-ISR response-leg reader (SCRUM-25, M4). Ingests synthetic pain.002-family ISR reply files (token _ISR) into isr_resp: one row per Tx block, fan-out at ingest per R-17. Replay-safe via INSERT ... ON CONFLICT (response_file, e2e). 3-tier: ReaderTasklet -> ReaderService -> data/repo. [SYNTHETIC-CONTRACT R-35] reply shape.
+ISR response reader for DCRE Collections: ingests Fintegrate ISR reply files into `isr_resp`, one verdict row per transaction block.
 
-Spring Boot 4.1.0 / Spring Batch 6 / Java 25, CockroachDB via the PostgreSQL driver. Ephemeral batch job, not a server: `ExitCodeMain` wires the Batch outcome into the JVM exit code (R-34). ISR is the initial status report leg: the file/micro-batch level ACK/NACK from Fintegrate (formal expansion owed, A-5).
+## What it does
 
-## Pipeline position
+IXR is the initial-status-report leg of the response flow (`IXR | SXR | PXR -> ext_tx_status -> PRG`). Fintegrate (simulated by dcre-infra `fint_sim_reply.py`) drops a reply file into a per-client `fint-resp/in` exchange directory; AGT selects the reader by the `_ISR` filename token and launches IXR as a short-lived Kubernetes Job. IXR parses the reply, one `<OrgnlMsgId>` plus repeated `<Tx>` blocks of `<OrgnlEndToEndId>` + `<TxSts>` + optional `<Rsn>` ([SYNTHETIC-CONTRACT R-35] shape), and upserts one `isr_resp` row per Tx block (fan-out at ingest per R-17). Replaying the same file is a no-op via `INSERT ... ON CONFLICT (response_file, e2e)`.
 
-Response flow (SPEC-DAG-PIPELINE): `IXR | SXR | PXR -> ext_tx_status -> PRG`. Fintegrate drops a reply file into the exchange; AGT's `fint-resp` route (R-36) selects the reader by the filename reply-type token, `_ISR` launching IXR as an ephemeral K8s Job (unknown tokens quarantine fail-closed). The ingested rows feed the `ext_tx_status` consolidation with stage-rank precedence PBSR > SBSR > ISR > AIS/CTV (R-17), which PRG reads. Boundary reader per R-30: only boundary services touch files.
+## Architecture and principles
 
-## Job structure
+Spring Boot 4.1.0 / Spring Batch 6 / Java 25 on CockroachDB (PostgreSQL driver). An ephemeral batch job, not a server: `ExitCodeMain` (platform-batch) wires the Batch outcome into the JVM exit code (R-34).
 
-`ixrJob` (za.co.fnb.dcre.ixr.config.IxrJobConfig), single tasklet step `readerStep`:
+- **SOLID, 3-tier, layer-first packages**: `ReaderTasklet` is a thin entry adapter (no SQL, no parsing) that reads `input.file` and calls one business-tier method; `ReaderService` parses and upserts; persistence happens only through `data/repo/IsrRespRepo` (Spring Data JDBC, `IsrRespEntity` extends the platform `BaseEntity`). Packages: `config`, `service`, `data/model`, `data/repo`.
+- **12FactorApp Alignment: https://12factor.net/**: config strictly from the environment over committed working dev defaults in `application.yml` (a clean clone runs with no `.env` at all), stateless one-shot process, the shared CockroachDB as an attached backing resource.
+- **Idempotent restart semantics**: `IsrRespRepo.upsert` is a native `INSERT ... ON CONFLICT (response_file, e2e) DO UPDATE` on the business identity (CRDB `UPSERT` arbitrates on the PK only, so the business key needs `ON CONFLICT`). Replays and relaunches converge on the same rows.
+- **Sliced ingest (SCRUM-42)**: one giant serializable transaction is unrefreshable at 300k rows (`RETRY_SERIALIZABLE`), so upserts commit in bounded slices (`dcre.ixr.ingest-slice-size`, default 10000), each in its own `REQUIRES_NEW` transaction wrapped by `CrdbRetry` (5 attempts, exponential backoff with jitter). Committed slices stand when a later slice fails; a restart no-ops over them and resumes the rest.
+- **40001 at the step boundary**: `readerStep` registers the shared `CrdbRetryExceptionHandler` (platform-batch) so commit-time serialization aborts retry instead of failing the job.
+- **Stale-execution sweep (A-39a)**: `StaleExecutionSweeper.abandonStale(ds, "IXR_BATCH_", 60)` runs before job launch so a relaunch after a pod kill never throws `JobExecutionAlreadyRunning`.
+- **Outcome seam (R-35)**: on `COMPLETED`, `SeamListener` writes `BUSINESS_ACCEPTED` to `<exchange-root>/outcomes/<JOB_NAME>`. A non-COMPLETED execution writes nothing; the exit code and the K8s Failed condition are the witnesses, and AGT treats absence as never-success (R-33).
 
-- `ReaderTasklet` (thin entry adapter: no SQL, no parsing) reads `input.file` and hands the text plus `original.name` to the business tier, recording the ingested row count as `rows` in the execution context.
-- `ReaderService` extracts the single `<OrgnlMsgId>` (missing one is an error) and every `<Tx>` block (`<OrgnlEndToEndId>` + `<TxSts>` + optional `<Rsn>`) via regex against the [SYNTHETIC-CONTRACT R-35] reply shape, upserting one `isr_resp` row per Tx block.
-- `IsrRespRepo.upsert`: native `INSERT ... ON CONFLICT (response_file, e2e) DO UPDATE` on the business identity (CRDB `UPSERT` resolves on the PK only), so replaying the same file is a no-op.
+### Data
 
-`SeamListener` writes `BUSINESS_ACCEPTED` to `<exchange-root>/outcomes/<JOB_NAME>` on COMPLETED (SYNTHETIC-CONTRACT, R-35). A non-COMPLETED execution writes nothing: the exit code and the K8s Failed condition are the witnesses; AGT treats absence as never-success (R-33 arbiter clause).
+`isr_resp` (Liquibase `db/changelog/2026/07/001-ixr.xml`): `response_file`, `orgnl_msg_id`, `e2e`, `status`, `reason` (nullable), plus `BaseEntity` columns (`version`, `created_at`, `updated_at`); `UNIQUE (response_file, e2e)`. Batch metadata lives in `IXR_BATCH_`-prefixed tables (`spring.batch.jdbc.table-prefix`, `initialize-schema: never`) via a Liquibase-owned copy of the Batch 6 DDL with `EXIT_MESSAGE` widened to TEXT (`002-batch-metadata.xml`). Liquibase history on the shared DB is per-service: `ixr_databasechangelog` / `ixr_databasechangeloglock`.
 
-JobParameters: `arrival.id` (identifying, R-16), `input.file` and `original.name` (non-identifying; `original.name` becomes the `response_file` identity column).
+## Prerequisites
 
-## Data
+- Java 25 (Gradle toolchain; wrapper 9.5.1 included)
+- Docker (Testcontainers CockroachDB for tests, image build for deployment)
+- Platform libs in Maven Local: `za.co.fnb.dcre:platform-persistence:0.1.0` and `za.co.fnb.dcre:platform-batch:0.1.0` (batch brings `platform-files` and `platform-model` transitively via its `api` chain)
 
-`isr_resp` (Liquibase `001-ixr.xml`, CREATE IF NOT EXISTS): `response_file`, `orgnl_msg_id`, `e2e`, `status`, `reason` (nullable), plus BaseEntity columns (version, created_at, updated_at); `UNIQUE (response_file, e2e)`.
-
-## Local module dependencies
-
-| Module | Version | Scope | Used for |
-|---|---|---|---|
-| `dcre-platform-persistence` | 0.1.0 | `implementation` | `BaseEntity` (version/created_at/updated_at on `IsrRespEntity`), `JdbcConfig` (Spring Data JDBC base config, imported by `IxrApplication`) |
-| `dcre-platform-batch` | 0.1.0 | `implementation` | `ExitCodeMain` (R-34 exit-code wiring), `OutcomeFileWriter` (outcome seam), `StaleExecutionSweeper` (A-39a self-abandonment) |
-
-Both resolve from Maven Local only (no remote repository): run `./gradlew publishToMavenLocal` in each dependency repo first, publish chain `dcre-platform-model` -> `dcre-platform-files` -> `dcre-platform-batch` (batch brings files and model transitively via its `api` chain); `dcre-platform-persistence` is standalone. Details in each module repo's README under "Publishing".
-
-## Configuration (env over committed dev defaults, 12FactorApp Alignment: https://12factor.net/)
-
-| Env | Default | Meaning |
-|---|---|---|
-| `DCRE_DB_URL` | `jdbc:postgresql://localhost:26257/dcre_collections?sslmode=disable` | Shared collections DB (CockroachDB) |
-| `DCRE_DB_USER` / `DCRE_DB_PASSWORD` | `root` / empty | DB credentials |
-| `DCRE_EXCHANGE_ROOT` | `../../infra/dcre-infra/exchange` | Exchange root for the outcome seam |
-| `JOB_NAME` | `local-<executionId>` | Set by AGT on the K8s Job; names the outcome seam file |
-
-Clean clone runs with no `.env` at all; the working dev defaults are committed in `application.yml`.
-
-## Batch metadata
-
-Prefixed `IXR_BATCH_` tables (`spring.batch.jdbc.table-prefix`, `initialize-schema: never`) via a Liquibase-owned copy of the Batch 6 postgres DDL with EXIT_MESSAGE widened to TEXT (`002-batch-metadata.xml`, per R-34/A-39b). Per-service Liquibase history on the shared DB: `ixr_databasechangelog` / `ixr_databasechangeloglock`. `StaleExecutionSweeper.abandonStale(ds, "IXR_BATCH_", 60)` runs before the job launches (A-39a) so a relaunch after a pod kill never throws JobExecutionAlreadyRunning.
-
-## Build & test
-
-`./gradlew test` (needs Docker): `IxrJobTest` on Testcontainers CockroachDB v26.2.3 ingests a 4-Tx synthetic reply (ACSC/RJCT with reason AC04), asserts per-row status/reason/orgnl_msg_id, and proves replay of the same file stays at 4 rows. Platform libs resolve from mavenLocal (see Local module dependencies).
-
-## Run
-
-Cluster: AGT launches IXR as an ephemeral K8s Job per `_ISR` reply arrival (image: `./gradlew bootJar && docker build -t dcre-ixr:0.1.0 .`, eclipse-temurin 25 jre-alpine), passing the JobParameters as program args and `JOB_NAME` in the env. Local one-shot:
+## Quickstart
 
 ```bash
+# 1) Publish the platform libs to Maven Local (once), in dependency order:
+#    dcre-platform-model -> dcre-platform-files -> dcre-platform-batch; dcre-platform-persistence standalone.
+#    In each platform repo clone:
+./gradlew publishToMavenLocal
+
+# 2) Build and test (Docker required; no .env needed, dev defaults are committed)
+./gradlew test
+
+# 3) Local one-shot run against a local CockroachDB (defaults target localhost:26257)
 ./gradlew bootJar
-java -jar build/libs/dcre-ixr-0.1.0.jar \
+java -jar build/libs/ixr-2.0.jar \
   'arrival.id=<uuid>,java.lang.String,true' \
   'input.file=/path/to/reply.xml,java.lang.String,false' \
   'original.name=20260712_FNB_ISR_reply.xml,java.lang.String,false'
 ```
 
-## Observability
+## Configuration
 
-No metrics endpoints yet. The observable surface is: the JVM exit code (R-34), the outcome seam file (R-35), the `rows` counter in the execution context, and the `IXR_BATCH_` metadata as the step-grain diagnostics annex (R-33: advisory only).
+Env over committed dev defaults (`application.yml`); precedence: yml default < environment.
+
+| Env | Default | Purpose |
+|---|---|---|
+| `DCRE_DB_URL` | `jdbc:postgresql://localhost:26257/dcre_collections?sslmode=disable` | Shared collections DB (CockroachDB) |
+| `DCRE_DB_USER` | `root` | DB username |
+| `DCRE_DB_PASSWORD` | (empty) | DB password |
+| `DCRE_EXCHANGE_ROOT` | `../../../../../infra/dcre-infra/exchange` | Exchange root for the outcome seam |
+| `DCRE_IXR_INGEST_SLICE_SIZE` | `10000` | Rows per committed ingest slice (SCRUM-42) |
+| `JOB_NAME` | `local-<executionId>` | Set by AGT on the K8s Job; names the outcome seam file |
+
+JobParameters: `arrival.id` (identifying, R-16), `input.file` and `original.name` (non-identifying; `original.name` becomes the `response_file` identity column).
+
+## Testing
+
+```bash
+./gradlew test   # needs Docker
+```
+
+- `IxrJobTest`: full job on Testcontainers CockroachDB `v26.2.3`; ingests a 4-Tx synthetic reply (ACSC/RJCT with reason AC04), asserts per-row status/reason/orgnl_msg_id, and proves replay of the same file stays at 4 rows.
+- `ReaderServiceSliceTest`: sliced-ingest proofs against real CRDB; a slice that exhausts its retry budget fails the run without rolling back committed slices, a transient 40001 abort retries in a fresh transaction, and a re-run no-ops over committed slices preserving row identity.
+- `IxrJobConfigRetryTest`: proves the shared 40001 retry handler is registered on the step the real job config builds, covering commit-time aborts.
+- `CucumberSuiteTest`: business-readable BDD scenarios in `src/test/resources/features/isr-reply-reader.feature` (fan-out, reject reasons, replay, malformed and empty replies).
+
+## Local cluster deployment
+
+```bash
+./gradlew bootJar
+docker build -t dcre-ixr:2.1.1 .
+kind load docker-image --name dcre-dev dcre-ixr:2.1.1
+```
+
+The image is `eclipse-temurin:25-jre-alpine`. AGT launches IXR as an ephemeral K8s Job in the `dcre` namespace whenever a `_ISR` reply lands in a per-client `fint-resp/in` directory, resolving the image from its `AGT_IXR_IMAGE` env (managed fleet-wide by dcre-infra `scripts/switch-version.sh`). JobParameters arrive as program args; `JOB_NAME` is set in the Job env. Releases are digits-only 3-component SemVer tags, uniform across the fleet (current: 2.1.1).
+
+## Related repositories
+
+- Orchestrator: [dcre-agt](https://github.com/sean-huni/dcre-agt)
+- Stage services: [dcre-crr](https://github.com/sean-huni/dcre-crr), [dcre-ctv](https://github.com/sean-huni/dcre-ctv), [dcre-cde](https://github.com/sean-huni/dcre-cde), [dcre-cir](https://github.com/sean-huni/dcre-cir), [dcre-crw](https://github.com/sean-huni/dcre-crw), [dcre-sxr](https://github.com/sean-huni/dcre-sxr), [dcre-pxr](https://github.com/sean-huni/dcre-pxr), [dcre-prg](https://github.com/sean-huni/dcre-prg), [dcre-ais](https://github.com/sean-huni/dcre-ais), [dcre-hcs](https://github.com/sean-huni/dcre-hcs)
+- Platform libs: [dcre-platform-model](https://github.com/sean-huni/dcre-platform-model), [dcre-platform-files](https://github.com/sean-huni/dcre-platform-files), [dcre-platform-batch](https://github.com/sean-huni/dcre-platform-batch), [dcre-platform-persistence](https://github.com/sean-huni/dcre-platform-persistence)
+- Infra and tooling: [dcre-infra](https://github.com/sean-huni/dcre-infra), [dcre-fixture-toolkit](https://github.com/sean-huni/dcre-fixture-toolkit), [dcre-design-register](https://github.com/sean-huni/dcre-design-register), [dcre-rpt](https://github.com/sean-huni/dcre-rpt)
