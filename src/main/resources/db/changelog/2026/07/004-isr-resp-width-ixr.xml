@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- SCRUM-58 file-trace (spec 1.4): response_file must hold any name that
+         fits file_arrival.physical_filename(512); today a 129+ char reply name
+         registers in agt_ops then crashes the reader insert mid-flow. -->
+    <changeSet id="004-isr-resp-width-ixr" author="dcre">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="isr_resp" columnName="response_file"/>
+        </preConditions>
+        <comment>128 to 512: match file_arrival.physical_filename; re-widening to the same type is a no-op.</comment>
+        <modifyDataType tableName="isr_resp" columnName="response_file" newDataType="VARCHAR(512)"/>
+        <!-- CockroachDB: Liquibase's Postgres modifyDataType appends USING (col::type),
+             which CRDB classifies as a rewrite-class conversion and rejects on indexed
+             columns (response_file is in UNIQUE (response_file, e2e)). The plain ALTER
+             is the metadata-only widening CRDB accepts, so strip the USING clause. -->
+        <modifySql dbms="postgresql, cockroachdb">
+            <replace replace=" USING (response_file::VARCHAR(512))" with=""/>
+        </modifySql>
+    </changeSet>
+
+</databaseChangeLog>
