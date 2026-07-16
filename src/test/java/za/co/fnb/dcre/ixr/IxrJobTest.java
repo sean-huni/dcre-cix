@@ -1,5 +1,6 @@
 package za.co.fnb.dcre.ixr;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.batch.core.BatchStatus;
@@ -50,6 +51,12 @@ class IxrJobTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @BeforeEach
+    void crwSourceTables() {
+        // SCRUM-55: ingest resolves OrgnlMsgId against the CRW-owned registry tables.
+        CrwSourceTables.bootstrap(jdbc);
+    }
 
     // [SYNTHETIC-CONTRACT R-35] reply shape
     static final String REPLY = """

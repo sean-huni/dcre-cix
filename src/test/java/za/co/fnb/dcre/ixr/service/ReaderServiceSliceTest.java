@@ -13,6 +13,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.CockroachContainer;
 import org.testcontainers.utility.DockerImageName;
+import za.co.fnb.dcre.ixr.CrwSourceTables;
 import za.co.fnb.dcre.ixr.data.repo.IsrRespRepo;
 
 import java.lang.reflect.InvocationTargetException;
@@ -72,6 +73,8 @@ class ReaderServiceSliceTest {
 
     @BeforeEach
     void newReply() {
+        // SCRUM-55: ingest resolves OrgnlMsgId against the CRW-owned registry tables.
+        CrwSourceTables.bootstrap(jdbc);
         String unique = UUID.randomUUID().toString().substring(0, 8);
         responseFile = "20260714_FNB_ISR_" + unique + "_RESP.xml";
         reply = reply(6);
@@ -132,10 +135,11 @@ class ReaderServiceSliceTest {
     /** Delegates to the real repo; throws a CRDB-shaped 40001 for matching Tx numbers, {@code failures} times. */
     private IsrRespRepo failingRepo(final IntPredicate failTx, final int failures) {
         AtomicInteger thrown = new AtomicInteger();
+        // upsert args since SCRUM-55: (responseFile, orgnlMsgId, emissionId, e2e, status, reason)
         return (IsrRespRepo) Proxy.newProxyInstance(IsrRespRepo.class.getClassLoader(),
                 new Class<?>[]{IsrRespRepo.class}, (proxy, method, args) -> {
                     if ("upsert".equals(method.getName())
-                            && failTx.test(Integer.parseInt(((String) args[2]).substring(4)))
+                            && failTx.test(Integer.parseInt(((String) args[3]).substring(4)))
                             && thrown.getAndIncrement() < failures) {
                         throw new CannotAcquireLockException("ERROR: restart transaction:"
                                 + " TransactionRetryWithProtoRefreshError: RETRY_SERIALIZABLE"
