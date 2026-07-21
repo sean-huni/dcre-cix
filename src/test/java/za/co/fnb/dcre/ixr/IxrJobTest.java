@@ -18,10 +18,12 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(properties = {"spring.batch.job.enabled=false", "dcre.exchange-root=build/test-exchange"})
 class IxrJobTest {
@@ -103,5 +105,26 @@ class IxrJobTest {
         assertEquals(4, jdbc.queryForObject(
                 "SELECT count(*) FROM isr_resp WHERE response_file=?", Integer.class, original),
                 "replay is a no-op via ON CONFLICT (response_file, e2e)");
+    }
+
+    @Test
+    void seamFallbackNameIsLocalIxrExecutionIdWithoutJobNameEnv() throws Exception {
+        assertNull(System.getenv("JOB_NAME"), "test contract: no JOB_NAME in the test environment");
+        String original = "20260716_FNB_ISR_seam.xml";
+        Path input = dir.resolve(original);
+        Files.writeString(input, REPLY);
+
+        JobExecution run = jobOperator.start(ixrJob, new JobParametersBuilder()
+                .addString("arrival.id", UUID.randomUUID().toString(), true)
+                .addString("input.file", input.toString(), false)
+                .addString("original.name", original, false)
+                .toJobParameters());
+
+        assertEquals(BatchStatus.COMPLETED, run.getStatus());
+        Path seam = Path.of("build/test-exchange/outcomes/local-ixr-" + run.getId());
+        assertTrue(Files.exists(seam),
+                "SCRUM-58: the dev seam fallback must be self-describing (local-ixr-<executionId>): " + seam);
+        assertEquals(List.of("BUSINESS_ACCEPTED"), Files.readAllLines(seam),
+                "verdict semantics preserved byte-exact by the OutcomeSeamListener swap");
     }
 }
