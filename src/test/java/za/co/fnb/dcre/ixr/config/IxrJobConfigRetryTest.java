@@ -18,6 +18,7 @@ import org.springframework.batch.infrastructure.support.transaction.Resourceless
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import za.co.fnb.dcre.ixr.service.ReaderTasklet;
+import za.co.fnb.dcre.platform.batch.HeartbeatWriter;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -73,7 +74,11 @@ class IxrJobConfigRetryTest {
     void readerStepRetriesCommitTimeCrdbAborts() throws Exception {
         var repo = new ResourcelessJobRepository();
         var tasklet = new CountingTasklet();
-        Job job = new IxrJobConfig().ixrJob(repo, new CommitFailingTxManager(2), tasklet, "unused-exchange-root");
+        // SCRUM-88: the job now also registers a HeartbeatWriter listener; this unit test drives
+        // the STEP directly (never the job lifecycle), so a no-op writer (null datasource, no
+        // JOB_NAME) satisfies the signature without touching the retry behaviour under test.
+        Job job = new IxrJobConfig().ixrJob(repo, new CommitFailingTxManager(2), tasklet,
+                new HeartbeatWriter(null, null, null), "unused-exchange-root");
         Step readerStep = ((StepLocator) job).getStep("readerStep");
 
         JobInstance instance = repo.createJobInstance("retryJob", new JobParameters());

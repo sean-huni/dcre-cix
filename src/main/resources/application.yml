@@ -7,10 +7,6 @@ spring:
     url: ${DCRE_DB_URL:jdbc:postgresql://localhost:26257/dcre_col?sslmode=disable}
     username: ${DCRE_DB_USER:root}
     password: ${DCRE_DB_PASSWORD:}
-  batch:
-    jdbc:
-      table-prefix: IXR_BATCH_
-      initialize-schema: never
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.xml
     # Shared DB, per-service migration history (same isolation idea as IXR_BATCH_)
@@ -18,6 +14,16 @@ spring:
     database-change-log-lock-table: ixr_databasechangeloglock
 
 dcre:
+  # SCRUM-88 (M12): persistent JDBC JobRepository prefix, re-homed off the dead
+  # spring.batch.jdbc.table-prefix (Boot 4.1 no longer binds it) onto live config
+  # BatchJdbcConfig reads via BatchProperties.
+  batch:
+    table-prefix: IXR_BATCH_
+  # SCRUM-88 (M12): second read-write datasource for the HeartbeatWriter liveness
+  # stamp on agt_ops.launch_intent (HeartbeatDatasourceConfig).
+  agtops-db-url: ${DCRE_AGTOPS_DB_URL:jdbc:postgresql://localhost:26257/agt_ops?sslmode=disable}
+  agtops-db-user: ${DCRE_AGTOPS_DB_USER:root}
+  agtops-db-password: ${DCRE_AGTOPS_DB_PASSWORD:}
   exchange-root: ${DCRE_EXCHANGE_ROOT:../../../../../infra/dcre-infra/exchange}
   ixr:
     # SCRUM-42: reply upserts commit in bounded slices; one giant serializable
