@@ -1,4 +1,4 @@
-package za.co.fnb.dcre.ixr.service;
+package za.co.fnb.dcre.cix.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,8 +13,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.CockroachContainer;
 import org.testcontainers.utility.DockerImageName;
-import za.co.fnb.dcre.ixr.CrwSourceTables;
-import za.co.fnb.dcre.ixr.data.repo.IsrRespRepo;
+import za.co.fnb.dcre.cix.CrwSourceTables;
+import za.co.fnb.dcre.cix.data.repo.IsrRespRepo;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * SCRUM-42 sliced-ingest proofs against a real CRDB. The 300k-row ISR sweep
- * killed IXR (exit 5): one giant serializable tx is unrefreshable
+ * killed CIX (exit 5): one giant serializable tx is unrefreshable
  * (RETRY_SERIALIZABLE "can't refresh txn spans") and the step-level retry
  * just re-runs the same doomed transaction. Upserts must commit in bounded
  * slices: (1) a slice that exhausts its retry budget fails the run WITHOUT

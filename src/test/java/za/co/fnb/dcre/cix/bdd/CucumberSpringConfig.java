@@ -1,4 +1,4 @@
-package za.co.fnb.dcre.ixr.bdd;
+package za.co.fnb.dcre.cix.bdd;
 
 import io.cucumber.java.Before;
 import io.cucumber.spring.CucumberContextConfiguration;
@@ -9,9 +9,9 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.CockroachContainer;
 import org.testcontainers.utility.DockerImageName;
-import za.co.fnb.dcre.ixr.CrwSourceTables;
+import za.co.fnb.dcre.cix.CrwSourceTables;
 
-/** Same bootstrap as IxrJobTest: launcher disabled, exchange root under build/, static CRDB container. */
+/** Same bootstrap as CixJobTest: launcher disabled, exchange root under build/, static CRDB container. */
 @CucumberContextConfiguration
 @SpringBootTest(properties = {"spring.batch.job.enabled=false", "dcre.exchange-root=build/test-exchange"})
 public class CucumberSpringConfig {

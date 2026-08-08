@@ -1,4 +1,4 @@
-package za.co.fnb.dcre.ixr.service;
+package za.co.fnb.dcre.cix.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
-import za.co.fnb.dcre.ixr.data.repo.IsrRespRepo;
+import za.co.fnb.dcre.cix.data.repo.IsrRespRepo;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
  * <p>SCRUM-42 load fix: a 300k-row reply ingested in ONE serializable
  * transaction is unrefreshable; CRDB aborts it with RETRY_SERIALIZABLE
  * "can't refresh txn spans" and the step-level retry just re-runs the same
- * doomed giant transaction (IXR died exit 5 on the 300k ISR sweep). Upserts
+ * doomed giant transaction (CIX died exit 5 on the 300k ISR sweep). Upserts
  * therefore commit in bounded slices. Committed slices stand when a later
  * slice fails: the upsert targets the row's business identity
  * (response_file, e2e), so a restart (step-level retry or job relaunch)
@@ -64,7 +64,7 @@ public class ReaderService {
     private final int sliceSize;
 
     public ReaderService(final IsrRespRepo repo, final PlatformTransactionManager txManager,
-                         @Value("${dcre.ixr.ingest-slice-size:10000}") final int sliceSize) {
+                         @Value("${dcre.cix.ingest-slice-size:10000}") final int sliceSize) {
         this.repo = repo;
         // Each slice commits in its OWN transaction so a 300k-row reply
         // ratchets progress slice by slice; and a CRDB 40001 abort poisons the
@@ -97,7 +97,7 @@ public class ReaderService {
         return repo.findEmissionIdByOutboundMsgId(orgnlMsgId)
                 .map(id -> new Batch(id, new HashSet<>(repo.findMemberE2e(id))))
                 .orElseGet(() -> {
-                    log.warn("unresolved stage=IXR arrival=- seq=-1 e2e=- reason=UNKNOWN_OUTBOUND_MSG"
+                    log.warn("unresolved stage=CIX arrival=- seq=-1 e2e=- reason=UNKNOWN_OUTBOUND_MSG"
                             + " orgnlMsgId={} file={}", orgnlMsgId, responseFile);
                     return new Batch(null, null);
                 });
@@ -121,7 +121,7 @@ public class ReaderService {
                     int written = 0;
                     for (final Verdict verdict : slice) {
                         if (batch.memberE2e() != null && !batch.memberE2e().contains(verdict.e2e())) {
-                            log.warn("excluded stage=IXR arrival=- seq=-1 e2e={} reason=FOREIGN_E2E file={}",
+                            log.warn("excluded stage=CIX arrival=- seq=-1 e2e={} reason=FOREIGN_E2E file={}",
                                     verdict.e2e(), responseFile);
                             continue;
                         }

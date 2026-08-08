@@ -1,4 +1,4 @@
-package za.co.fnb.dcre.ixr.service;
+package za.co.fnb.dcre.cix.service;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -17,7 +17,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.CockroachContainer;
 import org.testcontainers.utility.DockerImageName;
-import za.co.fnb.dcre.ixr.CrwSourceTables;
+import za.co.fnb.dcre.cix.CrwSourceTables;
 
 import java.time.LocalDate;
 import java.util.List;

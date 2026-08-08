@@ -1,4 +1,4 @@
-package za.co.fnb.dcre.ixr.service;
+package za.co.fnb.dcre.cix.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +35,7 @@ final class CrdbRetry {
                 }
                 final long backoffMs = (BASE_BACKOFF_MS << (attempt - 1))
                         + ThreadLocalRandom.current().nextLong(BASE_BACKOFF_MS);
-                log.warn("retrying stage=IXR op={} attempt={}/{} after {} backoffMs={}",
+                log.warn("retrying stage=CIX op={} attempt={}/{} after {} backoffMs={}",
                         op, attempt, MAX_ATTEMPTS, e.getClass().getSimpleName(), backoffMs);
                 sleep(backoffMs);
             }
