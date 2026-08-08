@@ -20,7 +20,7 @@ Spring Boot 4.1.0 / Spring Batch 6 / Java 25 on CockroachDB (PostgreSQL driver).
 
 ### Data
 
-`isr_resp` (Liquibase `db/changelog/2026/07/001-cix.xml`): `response_file`, `orgnl_msg_id`, `e2e`, `status`, `reason` (nullable), plus `BaseEntity` columns (`version`, `created_at`, `updated_at`); `UNIQUE (response_file, e2e)`. Batch metadata lives in `CIX_BATCH_`-prefixed tables (`spring.batch.jdbc.table-prefix`, `initialize-schema: never`) via a Liquibase-owned copy of the Batch 6 DDL with `EXIT_MESSAGE` widened to TEXT (`002-batch-metadata.xml`). Liquibase history on the shared DB is per-service: `cix_databasechangelog` / `cix_databasechangeloglock`.
+`isr_resp` (Liquibase `db/changelog/2026/08/002-isr-resp.xml`, the v1 baseline): `response_file` VARCHAR(512), `orgnl_msg_id`, `emission_id` (nullable, SCRUM-55 batch correlation, no FK), `e2e`, `status`, `reason` (nullable), plus `BaseEntity` columns (`version`, `created_at`, `updated_at`); `UNIQUE (response_file, e2e)` and index `ix_isr_emission`. Batch metadata lives in `CIX_BATCH_`-prefixed tables (`dcre.batch.table-prefix`; Boot 4.1 no longer binds `spring.batch.jdbc.*`) via a Liquibase-owned copy of the Batch 6 DDL with `EXIT_MESSAGE` widened to TEXT (`db/changelog/2026/08/001-batch-metadata.xml`). Liquibase history on the shared DB is per-service: `cix_databasechangelog` / `cix_databasechangeloglock`.
 
 ## Prerequisites
 

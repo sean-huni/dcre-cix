@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Sub-master for 2026/08: the month that carries the CIX v1 baseline.
+         The root master includes months, never individual changesets, so a new month
+         is one line in the root and every changeset within a month stays ordered
+         here. -->
+
+    <include file="db/changelog/2026/08/001-batch-metadata.xml"/>
+    <include file="db/changelog/2026/08/002-isr-resp.xml"/>
+
+</databaseChangeLog>

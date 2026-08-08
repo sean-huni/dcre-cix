@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- ============================================================================
+         CIX v1 BASELINE, part 2 of 2: the ISR response-leg spine.
+
+         THIS IS THE VERSION 1 BASELINE. Every DCRE database is dropped and recreated
+         at the v1 cutover, so this changelog only ever runs against an EMPTY schema.
+         That is why the usual re-run guards are absent, and their absence is
+         deliberate rather than an oversight:
+
+           - no IF-NOT-EXISTS on the create. It guarded a create that might meet an
+             already-migrated database. On an empty schema this CREATE is the first
+             and only one, so the clause could not fire, and a clause that cannot
+             fire would silently skip the create if the table were ever present for a
+             reason nobody intended, turning a loud failure into a missing table.
+           - no onFail="MARK_RAN" preconditions. The pre-v1 set carried two: one on
+             the emission_id add-column and one on the response_file widening. Both
+             tested for the retrofit having already happened. There is no retrofit
+             here, because the column and the width are declared once, in this
+             createTable.
+
+         Pure typed tags, no raw-SQL body: the previous form hid its DDL from static
+         analysis (the cleanout audit's first extractor could not see relations
+         created inside a raw-SQL body) and pinned the file to one dialect.
+
+         response_file is VARCHAR(512), which is the FINAL width and not the
+         VARCHAR(128) the pre-v1 create declared. SCRUM-58 (spec 1.4): a reply name
+         registers in agt_ops against file_arrival.physical_filename(512), so a 129+
+         character name used to crash this reader's insert after the arrival had
+         already been recorded. A v1 baseline has nothing to widen, so the separate
+         modifyDataType changeset and its CockroachDB USING-clause workaround are
+         gone with it: the column is simply born at the width it has to hold.
+
+         emission_id correlates each reply verdict to the CRW emission batch that
+         carried its e2e (crw_emission.outbound_msg_id, SCRUM-55). It is a plain UUID
+         with NO foreign key: crw_emission is owned by CRW, and a cross-service FK on
+         the shared dcre_col database would make one service's availability another's
+         dependency. NULL when CRW's registry does not know the OrgnlMsgId, which is
+         the fail-open ingest / fail-closed correlation contract.
+
+         UNIQUE (response_file, e2e) is the replay guard: it is the full business
+         identity of a verdict, and the ON CONFLICT target that makes re-ingesting a
+         reply file a no-op rather than a duplicate.
+         ============================================================================ -->
+
+    <changeSet id="cix-v1-isr-resp" author="dcre">
+        <createTable tableName="isr_resp">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="response_file" type="VARCHAR(512)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="orgnl_msg_id" type="VARCHAR(35)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="emission_id" type="UUID"/>
+            <column name="e2e" type="VARCHAR(35)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(8)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reason" type="VARCHAR(8)"/>
+            <column name="version" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMPTZ" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="isr_resp" columnNames="response_file, e2e"
+                             constraintName="uq_isr_resp_file_e2e"/>
+        <createIndex tableName="isr_resp" indexName="ix_isr_emission">
+            <column name="emission_id"/>
+        </createIndex>
+        <rollback>
+            <dropTable tableName="isr_resp"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
