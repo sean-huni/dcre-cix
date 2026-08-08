@@ -1,4 +1,4 @@
-package za.co.fnb.dcre.ixr.service;
+package za.co.fnb.dcre.cix.service;
 
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;

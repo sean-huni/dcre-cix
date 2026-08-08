@@ -1,6 +1,6 @@
-@ixr
+@cix
 Feature: ISR reply file ingestion
-  The IXR reader picks up incoming _ISR reply files from the exchange and stores
+  The CIX reader picks up incoming _ISR reply files from the exchange and stores
   one verdict row per transaction block, so downstream collections processing can
   react to each end-to-end payment outcome individually (fan-out per R-17).
   Replaying the same reply file must never duplicate verdicts.

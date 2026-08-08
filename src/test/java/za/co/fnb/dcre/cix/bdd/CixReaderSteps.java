@@ -1,4 +1,4 @@
-package za.co.fnb.dcre.ixr.bdd;
+package za.co.fnb.dcre.cix.bdd;
 
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
@@ -27,10 +27,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * [SYNTHETIC-CONTRACT R-35] reply shape: one OrgnlMsgId element, then repeated
  * Tx blocks of OrgnlEndToEndId + TxSts with an optional Rsn.
  */
-public class IxrReaderSteps {
+public class CixReaderSteps {
 
     @Autowired
-    Job ixrJob;
+    Job cixJob;
 
     @Autowired
     JobOperator jobOperator;
@@ -123,9 +123,9 @@ public class IxrReaderSteps {
     }
 
     private void runJob() throws Exception {
-        Path input = Files.createTempDirectory("ixr-bdd").resolve(responseFile);
+        Path input = Files.createTempDirectory("cix-bdd").resolve(responseFile);
         Files.writeString(input, buildReply());
-        lastRun = jobOperator.start(ixrJob, new JobParametersBuilder()
+        lastRun = jobOperator.start(cixJob, new JobParametersBuilder()
                 .addString("arrival.id", UUID.randomUUID().toString(), true)
                 .addString("input.file", input.toString(), false)
                 .addString("original.name", responseFile, false)

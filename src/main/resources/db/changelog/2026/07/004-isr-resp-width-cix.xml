@@ -8,7 +8,7 @@
     <!-- SCRUM-58 file-trace (spec 1.4): response_file must hold any name that
          fits file_arrival.physical_filename(512); today a 129+ char reply name
          registers in agt_ops then crashes the reader insert mid-flow. -->
-    <changeSet id="004-isr-resp-width-ixr" author="dcre">
+    <changeSet id="004-isr-resp-width-cix" author="dcre">
         <preConditions onFail="MARK_RAN">
             <columnExists tableName="isr_resp" columnName="response_file"/>
         </preConditions>

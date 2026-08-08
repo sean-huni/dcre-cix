@@ -1,4 +1,4 @@
-package za.co.fnb.dcre.ixr.bdd;
+package za.co.fnb.dcre.cix.bdd;
 
 import static io.cucumber.junit.platform.engine.Constants.GLUE_PROPERTY_NAME;
 
@@ -11,6 +11,6 @@ import org.junit.platform.suite.api.Suite;
 @Suite
 @IncludeEngines("cucumber")
 @SelectClasspathResource("features")
-@ConfigurationParameter(key = GLUE_PROPERTY_NAME, value = "za.co.fnb.dcre.ixr.bdd")
+@ConfigurationParameter(key = GLUE_PROPERTY_NAME, value = "za.co.fnb.dcre.cix.bdd")
 class CucumberSuiteTest {
 }

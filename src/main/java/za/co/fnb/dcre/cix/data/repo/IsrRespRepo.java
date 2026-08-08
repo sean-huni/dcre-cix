@@ -1,10 +1,10 @@
-package za.co.fnb.dcre.ixr.data.repo;
+package za.co.fnb.dcre.cix.data.repo;
 
 import org.springframework.data.jdbc.repository.query.Modifying;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
-import za.co.fnb.dcre.ixr.data.model.IsrRespEntity;
+import za.co.fnb.dcre.cix.data.model.IsrRespEntity;
 
 import java.util.List;
 import java.util.Optional;

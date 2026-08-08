@@ -6,7 +6,7 @@
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
     <!-- ISR response-leg spine (M4 reader). Replay-safe via UNIQUE (response_file, e2e). -->
-    <changeSet id="001-isr-resp-ixr" author="dcre">
+    <changeSet id="001-isr-resp-cix" author="dcre">
         <sql>
             CREATE TABLE IF NOT EXISTS isr_resp (
                 id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,

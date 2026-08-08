@@ -1,11 +1,11 @@
-package za.co.fnb.dcre.ixr;
+package za.co.fnb.dcre.cix;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Test bootstrap for the CRW-owned source tables IXR reads for batch
+ * Test bootstrap for the CRW-owned source tables CIX reads for batch
  * correlation (SCRUM-55). CRW owns this DDL (crw 001-crw.xml + 003-split.xml
- * on the crw repo); IXR must never ship crw_* changesets in its own changelog,
+ * on the crw repo); CIX must never ship crw_* changesets in its own changelog,
  * so integration tests create lookalike tables via plain JDBC instead (the
  * same pattern PRG uses for its bootstrap sources). Column shapes copied from
  * the crw changelogs on the SCRUM-55-feat-batch-split branch.

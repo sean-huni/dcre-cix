@@ -1,4 +1,4 @@
-package za.co.fnb.dcre.ixr;
+package za.co.fnb.dcre.cix;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Import;
@@ -9,9 +9,9 @@ import za.co.fnb.dcre.platform.persistence.JdbcConfig;
 
 @SpringBootApplication
 @Import({JdbcConfig.class, BatchJdbcConfig.class, HeartbeatDatasourceConfig.class})
-public class IxrApplication {
+public class CixApplication {
 
     public static void main(String[] args) {
-        ExitCodeMain.run(IxrApplication.class, args);
+        ExitCodeMain.run(CixApplication.class, args);
     }
 }

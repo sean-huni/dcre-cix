@@ -1,4 +1,4 @@
-package za.co.fnb.dcre.ixr;
+package za.co.fnb.dcre.cix;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(properties = {"spring.batch.job.enabled=false", "dcre.exchange-root=build/test-exchange"})
-class IxrJobTest {
+class CixJobTest {
 
     static final CockroachContainer CRDB =
             new CockroachContainer(DockerImageName.parse("cockroachdb/cockroach:v26.2.3"));
@@ -46,7 +46,7 @@ class IxrJobTest {
     static Path dir;
 
     @Autowired
-    Job ixrJob;
+    Job cixJob;
 
     @Autowired
     JobOperator jobOperator;
@@ -77,7 +77,7 @@ class IxrJobTest {
         Path input = dir.resolve(original);
         Files.writeString(input, REPLY);
 
-        JobExecution run = jobOperator.start(ixrJob, new JobParametersBuilder()
+        JobExecution run = jobOperator.start(cixJob, new JobParametersBuilder()
                 .addString("arrival.id", UUID.randomUUID().toString(), true)
                 .addString("input.file", input.toString(), false)
                 .addString("original.name", original, false)
@@ -96,7 +96,7 @@ class IxrJobTest {
         assertEquals("MSG-0001", jdbc.queryForObject(
                 "SELECT orgnl_msg_id FROM isr_resp WHERE response_file=? AND e2e='E2E-1'", String.class, original));
 
-        JobExecution replay = jobOperator.start(ixrJob, new JobParametersBuilder()
+        JobExecution replay = jobOperator.start(cixJob, new JobParametersBuilder()
                 .addString("arrival.id", UUID.randomUUID().toString(), true)
                 .addString("input.file", input.toString(), false)
                 .addString("original.name", original, false)
@@ -108,22 +108,22 @@ class IxrJobTest {
     }
 
     @Test
-    void seamFallbackNameIsLocalIxrExecutionIdWithoutJobNameEnv() throws Exception {
+    void seamFallbackNameIsLocalCixExecutionIdWithoutJobNameEnv() throws Exception {
         assertNull(System.getenv("JOB_NAME"), "test contract: no JOB_NAME in the test environment");
         String original = "20260716_FNB_ISR_seam.xml";
         Path input = dir.resolve(original);
         Files.writeString(input, REPLY);
 
-        JobExecution run = jobOperator.start(ixrJob, new JobParametersBuilder()
+        JobExecution run = jobOperator.start(cixJob, new JobParametersBuilder()
                 .addString("arrival.id", UUID.randomUUID().toString(), true)
                 .addString("input.file", input.toString(), false)
                 .addString("original.name", original, false)
                 .toJobParameters());
 
         assertEquals(BatchStatus.COMPLETED, run.getStatus());
-        Path seam = Path.of("build/test-exchange/outcomes/local-ixr-" + run.getId());
+        Path seam = Path.of("build/test-exchange/outcomes/local-cix-" + run.getId());
         assertTrue(Files.exists(seam),
-                "SCRUM-58: the dev seam fallback must be self-describing (local-ixr-<executionId>): " + seam);
+                "SCRUM-58: the dev seam fallback must be self-describing (local-cix-<executionId>): " + seam);
         assertEquals(List.of("BUSINESS_ACCEPTED"), Files.readAllLines(seam),
                 "verdict semantics preserved byte-exact by the OutcomeSeamListener swap");
     }

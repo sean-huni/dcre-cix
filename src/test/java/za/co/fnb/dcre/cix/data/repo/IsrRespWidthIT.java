@@ -1,4 +1,4 @@
-package za.co.fnb.dcre.ixr.data.repo;
+package za.co.fnb.dcre.cix.data.repo;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
