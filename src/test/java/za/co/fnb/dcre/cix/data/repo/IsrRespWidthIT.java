@@ -14,11 +14,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * SCRUM-58 response_file widening (spec 1.4): a 129+ char reply name registers
- * in agt_ops (file_arrival.physical_filename is 512) then crashes the reader
- * insert on the old isr_resp VARCHAR(128). Post-widening, a 200-char name must
- * round-trip AND the replay-guard UNIQUE (response_file, e2e) must survive the
- * type change untouched.
+ * SCRUM-58 response_file width (spec 1.4): a 129+ char reply name registers in
+ * agt_ops (file_arrival.physical_filename is 512) then crashes the reader insert
+ * on a VARCHAR(128) column. The v1 baseline declares isr_resp.response_file at
+ * VARCHAR(512) directly, so this is now a guard on the BASELINE width rather
+ * than on a widening step: a 200-char name must round-trip AND the replay-guard
+ * UNIQUE (response_file, e2e) must reject a raw duplicate.
  */
 @SpringBootTest(properties = {"spring.batch.job.enabled=false"})
 class IsrRespWidthIT {
@@ -59,7 +60,7 @@ class IsrRespWidthIT {
     }
 
     @Test
-    void replayGuardUniqueStillEnforcedPostWidening() {
+    void replayGuardUniqueEnforcedAtBaselineWidth() {
         repo.upsert(LONG_NAME, "MSG-W2", null, "E2E-W2", "ACSC", null);
         repo.upsert(LONG_NAME, "MSG-W2", null, "E2E-W2", "RJCT", "AC04");
 
@@ -74,6 +75,6 @@ class IsrRespWidthIT {
         assertThrows(DuplicateKeyException.class, () -> jdbc.update(
                         "INSERT INTO isr_resp (id, response_file, orgnl_msg_id, e2e, status)"
                                 + " VALUES (gen_random_uuid(), ?, 'MSG-W2', 'E2E-W2', 'ACSC')", LONG_NAME),
-                "UNIQUE (response_file, e2e) must still reject a raw duplicate after the widening");
+                "UNIQUE (response_file, e2e) must reject a raw duplicate at the baseline width");
     }
 }

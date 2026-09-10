@@ -4,7 +4,7 @@ ISR response reader for DCRE Collections: ingests Fintegrate ISR reply files int
 
 ## What it does
 
-CIX is the initial-status-report leg of the response flow (`CIX | SXR | PXR -> ext_tx_status -> PRG`). Fintegrate (simulated by dcre-infra `fint_sim_reply.py`) drops a reply file into a per-client `fint-resp/in` exchange directory; AGT selects the reader by the `_ISR` filename token and launches CIX as a short-lived Kubernetes Job. CIX parses the reply, one `<OrgnlMsgId>` plus repeated `<Tx>` blocks of `<OrgnlEndToEndId>` + `<TxSts>` + optional `<Rsn>` ([SYNTHETIC-CONTRACT R-35] shape), and upserts one `isr_resp` row per Tx block (fan-out at ingest per R-17). Replaying the same file is a no-op via `INSERT ... ON CONFLICT (response_file, e2e)`.
+CIX is the initial-status-report leg of the response flow (`CIX | CSX | CPX -> ext_tx_status -> CRG`). Fintegrate (simulated by dcre-infra `fint_sim_reply.py`) drops a reply file into a per-client `fint-resp/in` exchange directory; AGT selects the reader by the `_ISR` filename token and launches CIX as a short-lived Kubernetes Job. CIX parses the reply, one `<OrgnlMsgId>` plus repeated `<Tx>` blocks of `<OrgnlEndToEndId>` + `<TxSts>` + optional `<Rsn>` ([SYNTHETIC-CONTRACT R-35] shape), and upserts one `isr_resp` row per Tx block (fan-out at ingest per R-17). Replaying the same file is a no-op via `INSERT ... ON CONFLICT (response_file, e2e)`.
 
 ## Architecture and principles
 
@@ -20,7 +20,7 @@ Spring Boot 4.1.0 / Spring Batch 6 / Java 25 on CockroachDB (PostgreSQL driver).
 
 ### Data
 
-`isr_resp` (Liquibase `db/changelog/2026/07/001-cix.xml`): `response_file`, `orgnl_msg_id`, `e2e`, `status`, `reason` (nullable), plus `BaseEntity` columns (`version`, `created_at`, `updated_at`); `UNIQUE (response_file, e2e)`. Batch metadata lives in `CIX_BATCH_`-prefixed tables (`spring.batch.jdbc.table-prefix`, `initialize-schema: never`) via a Liquibase-owned copy of the Batch 6 DDL with `EXIT_MESSAGE` widened to TEXT (`002-batch-metadata.xml`). Liquibase history on the shared DB is per-service: `cix_databasechangelog` / `cix_databasechangeloglock`.
+`isr_resp` (Liquibase `db/changelog/2026/08/002-isr-resp.xml`, the v1 baseline): `response_file` VARCHAR(512), `orgnl_msg_id`, `emission_id` (nullable, SCRUM-55 batch correlation, no FK), `e2e`, `status`, `reason` (nullable), plus `BaseEntity` columns (`version`, `created_at`, `updated_at`); `UNIQUE (response_file, e2e)` and index `ix_isr_emission`. Batch metadata lives in `CIX_BATCH_`-prefixed tables (`dcre.batch.table-prefix`; Boot 4.1 no longer binds `spring.batch.jdbc.*`) via a Liquibase-owned copy of the Batch 6 DDL with `EXIT_MESSAGE` widened to TEXT (`db/changelog/2026/08/001-batch-metadata.xml`). Liquibase history on the shared DB is per-service: `cix_databasechangelog` / `cix_databasechangeloglock`.
 
 ## Prerequisites
 
