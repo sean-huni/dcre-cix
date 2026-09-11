@@ -49,6 +49,10 @@
          ============================================================================ -->
 
     <changeSet id="cix-v1-isr-resp" author="dcre">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="isr_resp"/></not>
+        </preConditions>
+        
         <createTable tableName="isr_resp">
             <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
                 <constraints primaryKey="true" nullable="false"/>
